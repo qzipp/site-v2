@@ -1,0 +1,13 @@
+{
+  "Lua.diagnostics.globals": [
+    "args",
+  ],
+  "Lua.workspace.library": [
+    "${addons}/luvit/module/library",
+    "./libs",
+    "./deps/",
+  ],
+  "Lua.workspace.checkThirdParty": false,
+
+  "Lua.runtime.version": "LuaJIT"
+}
