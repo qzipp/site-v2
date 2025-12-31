@@ -58,3 +58,9 @@ app:start({
 })
 
 --to enable debugging, use env DBG=1 in cli
+
+
+--- TODO
+--- param (this includes adding regex)
+--- do fsrouter
+--- do ftml

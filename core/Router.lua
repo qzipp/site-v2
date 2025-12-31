@@ -1,5 +1,7 @@
 local Object = require("core").Object
-local path = require("path")
+local Path = require("path")
+
+--fyi: every _* function is one that needs a good name
 
 local Response = require("./core/router/Response")
 local Request = require("./core/router/Request")
@@ -38,14 +40,12 @@ function Router:initialize(config)
   ---@type table<number, fuzzy.Router>
   self.routers = {}
 
-  ---@type table<fuzzy.Router.Method, table<string, fuzzy.Router.RouteCallback>>
-  self.routes = {
-    ["GET"] = {},
-    ["POST"] = {},
-    ["PUT"] = {},
-    ["DELETE"] = {},
-    ["PATCH"] = {}
-  }
+  ---@type table<number, {
+  ---  method: fuzzy.Router.Method,
+  ---  path: string,
+  ---  handler: fuzzy.Router.RouteCallback,
+  ---}>
+  self.routes = {}
 end
 
 ---@param middleware fuzzy.router.Middleware|fuzzy.router.MiddlewareFun
@@ -99,7 +99,7 @@ function Router:_get_basepath_from_parents()
     t2[#t1 - (i-1)] = v
   end
 
-  return path.join(table.unpack(t2))
+  return Path.join(table.unpack(t2))
 end
 
 ---@param req fuzzy.router.Request
@@ -118,11 +118,15 @@ function Router:handle(req, res)
   --basically make em not have to do stuff like path join, less compute
 
   Logger:debug("request calling routes")
-  for p, route in pairs(self.routes[req.method]) do
-    if path.join(self.basepath, p) == req.url then
-      Logger:debug(("request found matching route `%s`"):format(path))
-      route(req, res)
-    end
+  for n, route in pairs(self.routes) do
+    Logger:debug(("  route %d -> %s %s"):format(n, route.method, route.path))
+    if req.method ~= route.method then goto continue end
+    if req.url ~= Path.join(self.basepath, route.path) then goto continue end
+
+    Logger:debug(("request found matching route `%s`"):format(route.path))
+    route.handler(req, res)
+
+    ::continue::
   end
 
 
@@ -140,11 +144,24 @@ function Router:handle(req, res)
   Logger:debug("request end")
 end
 
+---@param path string
+function Router._path_to_luapattern(path)
+
+
+
+  -- return "pattern", { "param1", "param2"}
+end
+
+
 ---@param method fuzzy.Router.Method
 ---@param path string
 ---@param handler fuzzy.Router.RouteCallback
 function Router:method(method, path, handler)
-  self.routes[method][path] = handler
+  table.insert(self.routes, {
+    method = method,
+    path = path,
+    handler = handler
+  })
 
   return self
 end
