@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>hi</title>
+  </head>
+  <body>
+    <% for i in pairs({1, 2, 3}) do %>
+    <h1>fuck 🐈</h1>
+    <% end %>
+
+    <% if a == "thing" then %>
+      hi
+    <% end %>
+
+    <%>
+      local name = "joe"
+      print("hi " .. name)
+    </%>
+
+    { varstuff }
+
+    <% print("lua") %>
+    
+    <!-- layout -->
+    <@slot name="thing" />
+    <!-- or -->
+    <@layout>
+      <@slot name="thing" />
+    </@layout>
+
+
+    <!-- page -->
+    <@layout file="path">
+      <@slot name="thing">
+        hi
+      </@slot>
+    </@layout>
+    <!-- or -->
+    <@content name="thing">
+      hi
+    </@content>
+    <!-- or -->
+    <@content layout="./path/to/layout.html">
+      <@slot name="thing">
+        hi
+      </@slot>
+    </@content>
+
+    <!-- component -->
+    <@component path="./components/component.html" />
+    <!-- or -->
+    <@component path="component.html" />
+    <!-- or, this needs like a way of knowing where to look for it -->
+    <User>hi</User>
+    <components.User>hi</components.User>
+    
+    -- USE xml2lua for this. no patterns.Bye
+
+  </body>
+</html>

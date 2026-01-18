@@ -1,17 +1,32 @@
+local Logger = require("./Logger")
+
 local Object = require("core").Object
 local Path = require("path")
 
+local libqu = require("./libs/libqu")
+
 --fyi: every _* function is one that needs a good name
 
-local Response = require("./core/router/Response")
-local Request = require("./core/router/Request")
+local Response = require("./router/Response")
+local Request = require("./router/Request")
 
 ---@alias fuzzy.Router.Method
+---| "ANY"
 ---| "GET"
 ---| "POST"
 ---| "PUT"
 ---| "DELETE"
 ---| "PATCH"
+---| "OPTIONS"
+---| "HEAD"
+
+---@alias fuzzy.Router.Route {
+---  method: fuzzy.Router.Method,
+---  path: string,
+---  pattern_path: string,
+---  params: table<string>,
+---  handler: fuzzy.Router.RouteCallback,
+---}
 
 ---@alias fuzzy.Router.RouteCallback fun(req: fuzzy.router.Request, res: fuzzy.router.Response)
 
@@ -37,14 +52,10 @@ function Router:initialize(config)
   ---@type table<number, fuzzy.router.MiddlewareFun>
   self.middlewares = {}
 
-  ---@type table<number, fuzzy.Router>
-  self.routers = {}
+  -- ---@type table<number, fuzzy.Router>
+  -- self.routers = {}
 
-  ---@type table<number, {
-  ---  method: fuzzy.Router.Method,
-  ---  path: string,
-  ---  handler: fuzzy.Router.RouteCallback,
-  ---}>
+  ---@type table<number, fuzzy.Router.Route|fuzzy.Router>
   self.routes = {}
 end
 
@@ -69,7 +80,7 @@ end
 ---@param router fuzzy.Router
 function Router:mount(router)
   router:_mount_onto_router(self)
-  table.insert(self.routers, router)
+  table.insert(self.routes, router)
 
   return self
 end
@@ -77,7 +88,7 @@ end
 ---@param router fuzzy.Router
 function Router:_mount_onto_router(router)
   self.parent = router
-  self.basepath = self:_get_basepath_from_parents()
+  self.basepath = Router:_get_basepath_from_parents()
 end
 
 -- im sorry
@@ -99,7 +110,13 @@ function Router:_get_basepath_from_parents()
     t2[#t1 - (i-1)] = v
   end
 
-  return Path.join(table.unpack(t2))
+  local path = Path.join(table.unpack(t2))
+
+  if path == "." then
+    return "/"
+  else
+    return path
+  end
 end
 
 ---@param req fuzzy.router.Request
@@ -109,47 +126,78 @@ function Router:handle(req, res)
   Logger:debug(("router (%s): request %s:`%s` picked up "):format(self.basepath, req.method, req.url))
   res:header("X-Powered-By", "fuzzy")
 
-  Logger:debug("request calling middlewares")
+  Logger:debug(("request calling middlewares (%d)"):format(#self.middlewares))
   for i, middleware in pairs(self.middlewares) do
     middleware(req, res)
   end
 
-  --todo: "compile" these
-  --basically make em not have to do stuff like path join, less compute
+  -- todo: cleanup
+  Logger:debug(("request calling routes (%d)"):format(#self.routes))
+  for i, route in pairs(self.routes) do
+    if route.meta then
+      ---@type fuzzy.Router
+      route = route
+      route:handle(req, res)
+      goto continue
+    end
+    ---@type fuzzy.Router.Route
+    route = route 
+    res.is_passable = false -- resets the ability to pass the request to another route
 
-  Logger:debug("request calling routes")
-  for n, route in pairs(self.routes) do
-    Logger:debug(("  route %d -> %s %s"):format(n, route.method, route.path))
-    if req.method ~= route.method then goto continue end
-    if req.url ~= Path.join(self.basepath, route.path) then goto continue end
+    -- merge router path and route path
+    local real_path = Path.join(self.basepath, route.path)
+    local real_path_pattern = "^" ..Path.join(self.basepath, route.pattern_path)
+    
+    Logger:debug(("  route -> %s %s | %s"):format(route.method, real_path, real_path_pattern))
+    
+    -- this is for params (like /hello/:world)
+    local matches = {libqu.string.url_decode(req.url):match(real_path_pattern)}
 
-    Logger:debug(("request found matching route `%s`"):format(route.path))
+    if route.method ~= "ANY" and req.method ~= route.method then goto continue end
+    if #matches == 0 then
+      if req.url ~= real_path then goto continue end
+    end
+
+    for i, param in pairs(route.params) do
+      req.params[param] = matches[i]
+    end
+    
+    Logger:debug(("  route -> %s %s is matching"):format(route.method, route.path))
     route.handler(req, res)
+
+    -- a useful warning for probably something unintended 
+    if not res.has_body and not res.is_passable then Logger:warn("no body returned") end
+
+    -- we will stop the request, making it hang
+    if res.has_body or not res.is_passable then break end
 
     ::continue::
   end
 
+  if res.has_body then goto request_end end
 
-  Logger:debug("request calling routers" .. #self.routers)
-  for _, router in pairs(self.routers) do
-    if string.find(router.basepath, "^"..router.basepath) then
-      Logger:debug(("request found matching router `%s`"):format(router.path))
-      router:handle(req, res)
-    end
-  end
+  -- Logger:debug(("request calling routers (%d)"):format(#self.routes))
+  -- for _, router in pairs(self.routers) do
+  --   if string.find(router.basepath, "^"..router.basepath) then
+  --     Logger:debug(("request found matching router `%s`"):format(router.path))
+  --     router:handle(req, res)
+  --   end
+  -- end
 
-  if not req.http.res.hasBody then
-    res:status(404):finish()
-  end
+  ::request_end::
+  
   Logger:debug("request end")
 end
 
 ---@param path string
-function Router._path_to_luapattern(path)
+function Router._path_to_luapattern_n_params(path)
+  local params = {}
+  local pattern = libqu.string.escape(path):gsub(":(%w+)", function(param)
+    table.insert(params, param)
+    return "(.*)"
+  end) .. "$"
 
-
-
-  -- return "pattern", { "param1", "param2"}
+  return pattern, params
 end
 
 
@@ -157,9 +205,15 @@ end
 ---@param path string
 ---@param handler fuzzy.Router.RouteCallback
 function Router:method(method, path, handler)
+
+  local pattern_path, params = self._path_to_luapattern_n_params(path)
   table.insert(self.routes, {
     method = method,
     path = path,
+    pattern_path = pattern_path,
+    
+    params = params,
+    
     handler = handler
   })
 

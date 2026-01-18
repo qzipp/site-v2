@@ -1,3 +1,5 @@
+local Logger = require("../Logger")
+
 local Object = require("core").Object
 
 ---@class fuzzy.router.Response: luvit.core.Object
@@ -10,6 +12,9 @@ function Response:initialize(req)
   self.http = self.req.http
 
   self.has_body = self.http.res.hasBody
+  self.headers_sent = self.http.res.headersSent
+
+  self.is_passable = false
 end
 
 function Response:header(k, v)
@@ -21,20 +26,39 @@ end
 
 function Response:send(data, content_type)
   data = tostring(data)
-  if self.http.res.headersSent then
-    trace("! you cant send response twice")
+  if self.has_body then
+    Logger:warn("already has body")
     return self
   end
+  if self.headers_sent then
+    Logger:warn("you can't send headers more than once")
+    return self
+  end
+
   --todo: autodetect based on mime (maybe only text, html, image like png and so on)
-  self.http.res:setHeader("content-type", content_type or "text/plain")
+  self.http.res:setHeader("content-type", (content_type or "text/plain; charset=utf-8"))
   self.http.res:setHeader("content-length", tostring(#data))
   self.http.res:finish(data)
 
   return self
 end
 
-function Response:finish()
-  self.http.res:finish("")
+function Response:pass()
+  self.is_passable = true
+
+  return self
+end
+
+---@param str string
+function Response:write(str)
+  self.http.res:write(str)
+
+  return self
+end
+
+---@param str? string
+function Response:finish(str)
+  self.http.res:finish(str or "")
 
   return self
 end

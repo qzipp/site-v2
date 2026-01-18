@@ -22,6 +22,9 @@ function Request:initialize(app, req, res)
   self.url = self.http.req.url
   ---@type string
   self.body = ""
+
+  ---@type table<string, any>
+  self.params = {}
 end
 
 return Request

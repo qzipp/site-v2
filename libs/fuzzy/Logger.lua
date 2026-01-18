@@ -1,10 +1,18 @@
 local Object = require("core").Object
-local Color = require("./core/Color")
+local Color = require("./Color")
+
+-- MASSIVE TODO:
+--  remove time, add Logger.time
 
 ---@class kitty.Logger: luvit.core.Object
 local Logger = Object:extend()
 
 local Path = require("path")
+
+--todooooo: make this have levels of verbosity 
+
+--- TODOOOOO give this a namespace like fuzzy
+--- make warnings and stuff more verbose, such as give where it came from (Stacktrace)
 
 ---@param depth? number
 function Logger.get_source_caller(depth)
@@ -47,7 +55,7 @@ Logger.TEXT_LEVEL_DEBUG = Color:format("&{magenta bright}DEBUG")
 
 ---@param message string
 function Logger:debug(message)
-  if os.getenv("DBG") ~= "1" then return end
+  -- if os.getenv("DBG") ~= "1" then return end -- windows.. hello?? are you DUMB?? WHY DONT U WORK
 
   self:log(Logger.TEXT_LEVEL_DEBUG, Logger.get_source_caller(), message)
 end
